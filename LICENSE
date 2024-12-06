@@ -1,0 +1,23 @@
+# LICENSE
+
+## Open Source Components
+
+The following components of the Chaotic Coaster project are licensed under the MIT License:
+
+- Code located in the `code/` directory, except for `bird_image.py`.
+- Documentation in the `docs/` directory.
+- Hardware schematics in the `hardware/` directory.
+
+MIT License:
+
+<MIT License Text Here>
+
+## Proprietary Components
+
+The following components are proprietary and cannot be used, modified, or redistributed without explicit permission:
+
+- Graphics and animation assets located in the `assets/` directory.
+- The `bird_image.py` file and any related character animations.
+- Logos located in `assets/logos/`.
+
+All rights reserved © Kyle Taylor, 2024.
