@@ -1,26 +1,21 @@
 import time
-import machine
-import onewire
-import ds18x20
-import st7789py as st7789
+from machine import Pin, ADC, I2C
+import ssd1306
 import neopixel
-from utils import setup_display, display_message, read_temperature, check_ldr, update_leds
-from bird_image import bird_data
+from utils import display_message, update_leds, read_temperature
 
-# GPIO Pins Setup
-ldr_pin = machine.ADC(26)  # LDR connected to ADC Pin (GP26)
-ds_pin = machine.Pin(22)  # DS18B20 Data Pin
-led_pin = machine.Pin(14)  # WS2812 LED Data Pin
-display_spi = machine.SPI(1, baudrate=40000000, polarity=1, phase=1)
+# GPIO Pin Assignments (updated for RP2040-Zero constraints)
+light_sensor = ADC(26)  # 3DU5C phototransistor connected to ADC0 (GPIO26)
+temp_sensor = Pin(13)  # DS18B20 temperature sensor data pin
+led_pin = Pin(12, Pin.OUT)  # WS2812 LED data pin
+mode_switch = Pin(11, Pin.IN)  # Hot/Cold mode switch with external pull-up
 
-# DS18B20 Sensor Setup
-ds_sensor = ds18x20.DS18X20(onewire.OneWire(ds_pin))
+# I2C Display Setup
+i2c = I2C(0, scl=Pin(5), sda=Pin(4))  # SCL (GPIO5), SDA (GPIO4) for SSD1306
+oled = ssd1306.SSD1306_I2C(128, 64, i2c)  # SSD1306 128x64 display
 
-# Display Setup
-display = st7789.ST7789(display_spi, 240, 240, reset=machine.Pin(20, machine.Pin.OUT), cs=machine.Pin(17, machine.Pin.OUT), dc=machine.Pin(16, machine.Pin.OUT))
-
-# LED Setup
-num_leds = 8  # Number of WS2812 LEDs
+# WS2812 LED Setup
+num_leds = 8
 leds = neopixel.NeoPixel(led_pin, num_leds)
 
 # Constants for Temperature Ranges (in Fahrenheit)
@@ -28,45 +23,79 @@ TOO_HOT = 150
 WARM = 120
 JUST_RIGHT = 90
 COOL = 70
+TOO_COLD = 50
 
-# Main Loop
-setup_display(display, bird_data)
+# RGB Values for Each Temperature State
+COLORS = {
+    "too_hot": (255, 0, 0),      # Bright Red
+    "warm": (255, 165, 0),      # Orange
+    "just_right": (0, 255, 0),  # Green
+    "cool": (0, 0, 255),        # Bright Blue
+    "too_cold": (0, 255, 255)   # Cyan
+}
 
-while True:
-    # Check if a drink is on the coaster
-    drink_present = check_ldr(ldr_pin)
+# Threshold for Light Detection
+LIGHT_THRESHOLD = 20000  # Adjust based on testing
 
-    if not drink_present:
-        display_message(display, "Put a drink on me, human!")
-        update_leds(leds, (255, 0, 0))  # Flashing Red
-        time.sleep(1)
-        continue
+def main():
+    while True:
+        # Read Light Sensor
+        light_value = light_sensor.read_u16()
+        drink_present = light_value < LIGHT_THRESHOLD
 
-    # Check if the temperature sensor is connected
-    try:
-        temperature = read_temperature(ds_sensor, ds_pin)
-    except Exception:
-        display_message(display, "Plug in the temperature probe!")
-        update_leds(leds, (255, 255, 0))  # Flashing Yellow
-        time.sleep(1)
-        continue
+        if not drink_present:
+            display_message(oled, "Put a drink on me!")
+            update_leds(leds, (255, 0, 0))  # Flashing Red for no drink
+            time.sleep(1)
+            continue
 
-    # Determine temperature status and update LEDs and display
-    if temperature > TOO_HOT:
-        display_message(display, f"{temperature:.1f}F: Are you trying to burn your tongue?!")
-        update_leds(leds, (255, 0, 0))  # Bright Red
-    elif WARM < temperature <= TOO_HOT:
-        display_message(display, f"{temperature:.1f}F: This might be sippable, but be careful.")
-        update_leds(leds, (255, 165, 0))  # Orange
-    elif JUST_RIGHT < temperature <= WARM:
-        display_message(display, f"{temperature:.1f}F: Perfect, enjoy it while it lasts.")
-        update_leds(leds, (0, 255, 0))  # Green
-    elif COOL < temperature <= JUST_RIGHT:
-        display_message(display, f"{temperature:.1f}F: Starting to cool down, hurry up!")
-        update_leds(leds, (0, 0, 255))  # Blue
-    else:
-        display_message(display, f"{temperature:.1f}F: This is basically ice-cold at this point!")
-        update_leds(leds, (128, 0, 128))  # Purple
+        # Read Hot/Cold Mode Switch
+        is_hot_mode = not mode_switch.value()  # Switch closed (LOW) = Hot Mode, Open (HIGH) = Cold Mode
 
-    # Small delay before the next loop iteration
-    time.sleep(5)
+        # Read Temperature Sensor
+        try:
+            temperature = read_temperature(temp_sensor)
+        except Exception:
+            display_message(oled, "Connect temp probe!")
+            update_leds(leds, (255, 255, 0))  # Flashing Yellow for missing sensor
+            time.sleep(1)
+            continue
+
+        # Determine State Based on Mode and Temperature
+        if is_hot_mode:
+            if temperature > TOO_HOT:
+                display_message(oled, f"{temperature}F: Perfectly hot!")
+                update_leds(leds, COLORS["too_hot"])
+            elif WARM < temperature <= TOO_HOT:
+                display_message(oled, f"{temperature}F: Nicely warm.")
+                update_leds(leds, COLORS["warm"])
+            elif JUST_RIGHT < temperature <= WARM:
+                display_message(oled, f"{temperature}F: Cooling down.")
+                update_leds(leds, COLORS["just_right"])
+            elif COOL < temperature <= JUST_RIGHT:
+                display_message(oled, f"{temperature}F: Too cold!")
+                update_leds(leds, COLORS["cool"])
+            else:
+                display_message(oled, f"{temperature}F: Freezing!")
+                update_leds(leds, COLORS["too_cold"])
+        else:
+            if temperature < TOO_COLD:
+                display_message(oled, f"{temperature}F: Perfectly cold!")
+                update_leds(leds, COLORS["too_cold"])
+            elif TOO_COLD <= temperature < COOL:
+                display_message(oled, f"{temperature}F: Nicely cool.")
+                update_leds(leds, COLORS["cool"])
+            elif COOL <= temperature < JUST_RIGHT:
+                display_message(oled, f"{temperature}F: Warming up.")
+                update_leds(leds, COLORS["just_right"])
+            elif JUST_RIGHT <= temperature < WARM:
+                display_message(oled, f"{temperature}F: Too warm!")
+                update_leds(leds, COLORS["warm"])
+            else:
+                display_message(oled, f"{temperature}F: Boiling!")
+                update_leds(leds, COLORS["too_hot"])
+
+        time.sleep(5)  # Delay before next update
+
+if __name__ == "__main__":
+    main()

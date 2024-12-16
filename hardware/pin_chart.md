@@ -1,35 +1,25 @@
-### Chaotic Coaster Pin Chart
+### Pin Mapping Chart
 
-| Component                                     | Function                | Pico Pin            | Notes                                                                         |
-| --------------------------------------------- | ----------------------- | ------------------- | ----------------------------------------------------------------------------- |
-| **Power Supply**                              | Battery (3.7V LiPo)     | BAT+, BAT- (TP4056) | Battery connects to BAT+ and BAT- on TP4056 to manage charging and protection |
-| **Charging Module (TP4056)**                  | Charging Input (5V)     | VBUS, GND           | VBUS (5V from Pico USB) to IN+, GND to IN- of TP4056                          |
-|                                               | Power Output            | VSYS, GND           | OUT+ to VSYS, OUT- to GND to power the Pico from battery or USB seamlessly    |
-| **Temperature Sensor (DS18B20)**              | Data                    | GP22                | Requires 4.7k ohm pull-up resistor between Data and 3.3V                      |
-|                                               | VCC                     | 3V3                 | Powers the DS18B20                                                            |
-|                                               | GND                     | GND                 | Ground connection                                                             |
-| **3.5mm Jack**                                | Tip (Data)              | GP22                | Same data pin as DS18B20                                                      |
-|                                               | Ring (VCC)              | 3V3                 | Supplies power to the sensor                                                  |
-|                                               | Sleeve (GND)            | GND                 | Common ground                                                                 |
-| **SPI Display (1.3" 240x240)**                | GND                     | GND                 | Ground connection                                                             |
-|                                               | VCC                     | 3V3                 | Powers the display                                                            |
-|                                               | SCL (SPI Clock)         | GP18                | Serial Clock                                                                  |
-|                                               | SDA (SPI Data)          | GP19                | Serial Data (acts as MOSI)                                                    |
-|                                               | RES (Reset)             | GP20                | Resets the display                                                            |
-|                                               | DC (Data/Command)       | GP16                | Data/Command signal                                                           |
-|                                               | BLK (Backlight Control) | GP17                | Controls backlight (optional)                                                 |
-| **Custom WS2812 LED Setup**                   | Data                    | GP14                | Data pin for controlling the custom WS2812 LEDs                               |
-|                                               | VCC                     | VSYS                | Power supply to all LEDs                                                      |
-|                                               | GND                     | GND                 | Ground connection                                                             |
-| **Cup Detection Sensor (Light Sensor - LDR)** | Analog Input            | GP26 (ADC)          | Voltage divider with LDR and 10k ohm resistor to detect light level changes   |
-|                                               | VCC                     | 3V3                 | Powers the LDR in the voltage divider                                         |
-|                                               | GND                     | GND                 | Common ground                                                                 |
-
-### Notes on Changes
-
-- **TP4056 Wiring**: The TP4056 module is powered through the **VBUS** pin from the Pico, which receives **5V** when the USB cable is connected. This allows you to charge the battery through the **Pico's USB port**.
-- **Power Supply Adjustments**: The battery connects directly to **BAT+ and BAT-** on the TP4056 for charging. The **OUT+ and OUT-** of the TP4056 are connected to **VSYS** and **GND** on the Pico, respectively, providing power seamlessly from either USB or battery.
-- **SPI Display Pin Adjustments**: The pin labels have been updated to match the labels on the display module. **SCL** is used for the SPI clock, and **SDA** is used for the SPI data line. **BLK** is used for backlight control, and **RES** is for the reset function.
-- **Light Sensor for Cup Detection**: Added **LDR** (Light Dependent Resistor) as the cup detection sensor, using a voltage divider connected to **GP26** (ADC) to read changes in light levels. This sensor can determine if a drink is placed on the coaster by detecting whether light is blocked.
-- **LED Strip Update**: To simplify the setup and minimize components, **WS2812 addressable LEDs** are recommended. These are easy to control using a single data pin, require a lower power supply (3.3V or 5V), and do not require MOSFETs or additional circuitry.
-- **Single USB Port**: The **USB port on the Pico** serves for both battery charging and programming, simplifying the design and allowing only one external USB connection.
+| Component                        | Function                | RP2040-Zero Pin | Notes                                   |
+|----------------------------------|-------------------------|-----------------|-----------------------------------------|
+| **Power Supply**                 | 3.7V LiPo Battery       | 5V              | Battery connects to TP4056 BAT+        |
+|                                  | GND                    | GND             | Battery ground connects to TP4056 BAT- |
+| **TP4056 Charging Module**       | Output (VOUT)          | 5V              | Powers the system via on/off switch     |
+|                                  | GND                    | GND             | Common ground for all components        |
+| **System On/Off Switch**         | Toggle between TP4056 and RP2040-Zero | Between TP4056 OUT+ and 5V | Controls power to the microcontroller and peripherals |
+|                                  | GND                    | GND             | Common ground                           |
+| **3.3V Regulated Power**         | Powers peripherals     | 3.3V            | Provided by onboard regulator           |
+| **Temperature Sensor (DS18B20)** | Data                   | GPIO13          | Requires 4.7k ohm pull-up resistor      |
+|                                  | VCC                    | 3.3V            | Powers the DS18B20                      |
+|                                  | GND                    | GND             | Ground connection                       |
+| **SSD1306 Display (I2C)**        | SCK                    | GPIO5 (SCL)     | Serial Clock for I2C                    |
+|                                  | SDA                    | GPIO4 (SDA)     | Serial Data for I2C                     |
+|                                  | VCC                    | 3.3V            | Powers the display                      |
+|                                  | GND                    | GND             | Ground connection                       |
+| **Custom WS2812 LED Setup**      | Data                   | GPIO12          | Data pin for controlling LEDs           |
+|                                  | VCC                    | 5V              | Powered by the TP4056 via the 5V pin    |
+|                                  | GND                    | GND             | Common ground                           |
+| **Cup Detection Sensor (3DU5C)** | Analog Input           | ADC0 (GPIO26)   | Voltage divider: Emitter → 10k ohm → GND |
+|                                  | Collector              | 3.3V            | Connected to power (VCC)                |
+|                                  | Emitter                | ADC0 (GPIO26)   | Analog signal read by microcontroller   |
+| **Hot/Cold Mode Switch**         | Digital Input          | GPIO11          | External 10k ohm pull-up resistor to 3.3V |
